@@ -1,0 +1,271 @@
+# Added ETW sturacture class
+class ETW_REG_ENTRY(objects.StructType, pool.ExecutiveObject):
+    """A class for windows ETW registry objects."""
+
+    def get_guid(self) -> str:
+        """Get GUID"""
+        data1 = getattr(self.GuidEntry.Guid, "Data1")
+        data2 = getattr(self.GuidEntry.Guid, "Data2")
+        data3 = getattr(self.GuidEntry.Guid, "Data3")
+        data4 = getattr(self.GuidEntry.Guid, "Data4")
+        return "{0:08x}-{1:04x}-{2:04x}-{3:s}-{4:s}".format(
+            data1,
+            data2,
+            data3,
+            ''.join(["%02x" % d for d in data4[:2]]),
+            ''.join(["%02x" % d for d in data4[2:]]),
+        )
+    
+    def isenable_provider(self) -> bool:
+        """Get ProviderEnableInfo IsEnabled"""
+        if getattr(self.GuidEntry.ProviderEnableInfo, "IsEnabled"):
+            return True
+        else:
+            return False
+
+    def get_provider_loggerid(self) -> int:
+        """Get LoggerId"""
+        return self.GuidEntry.ProviderEnableInfo.LoggerId
+
+    def get_provider_level(self) -> str:
+        """Get Provider Level"""
+        dictTraceLevel = {
+            0: "TRACE_LEVEL_NONE",
+            1: "TRACE_LEVEL_CRITICAL",
+            2: "TRACE_LEVEL_ERROR",
+            3: "TRACE_LEVEL_WARNING",
+            4: "TRACE_LEVEL_INFORMATION",
+            5: "TRACE_LEVEL_VERBOSE",
+            6: "TRACE_LEVEL_RESERVED6",
+            7: "TRACE_LEVEL_RESERVED7",
+            8: "TRACE_LEVEL_RESERVED8",
+            9: "TRACE_LEVEL_RESERVED9",
+        }
+        return dictTraceLevel.get(getattr(self.GuidEntry.ProviderEnableInfo, "Level"))
+
+    def get_provider_enablemask(self) -> str:
+        """Get EnableMask"""
+        return "{:0>8b}".format(getattr(self, "EnableMask"), 'b')
+
+    def get_provider_groupenablemask(self) -> bool:
+        """Get GroupEnableMask"""
+        if getattr(self, "GroupEnableMask"):
+            return True
+        else:
+            return False
+
+    
+class ETW_GUID_ENTRY(objects.StructType, pool.ExecutiveObject):
+    """A class for windows ETW GUID objects."""
+
+    def get_guid(self) -> str:
+        """Get GUID"""
+        data1 = getattr(self.Guid, "Data1")
+        data2 = getattr(self.Guid, "Data2")
+        data3 = getattr(self.Guid, "Data3")
+        data4 = getattr(self.Guid, "Data4")
+        return "{0:08x}-{1:04x}-{2:04x}-{3:s}-{4:s}".format(
+            data1,
+            data2,
+            data3,
+            ''.join(["%02x" % d for d in data4[:2]]),
+            ''.join(["%02x" % d for d in data4[2:]]),
+        )
+
+    def isenable_provider(self) -> bool:
+        """Get ProviderEnableInfo IsEnabled"""
+        if getattr(self.ProviderEnableInfo, "IsEnabled"):
+            return True
+        else:
+            return False
+
+    def get_provider_loggerid(self) -> int:
+        """Get LoggerId"""
+        return self.ProviderEnableInfo.LoggerId
+
+    def get_provider_level(self) -> str:
+        """Get Provider Level"""
+        dictTraceLevel = {
+            0: "TRACE_LEVEL_NONE",
+            1: "TRACE_LEVEL_CRITICAL",
+            2: "TRACE_LEVEL_ERROR",
+            3: "TRACE_LEVEL_WARNING",
+            4: "TRACE_LEVEL_INFORMATION",
+            5: "TRACE_LEVEL_VERBOSE",
+            6: "TRACE_LEVEL_RESERVED6",
+            7: "TRACE_LEVEL_RESERVED7",
+            8: "TRACE_LEVEL_RESERVED8",
+            9: "TRACE_LEVEL_RESERVED9",
+        }
+        return dictTraceLevel.get(getattr(self.ProviderEnableInfo, "Level"))
+
+
+class ETW_REALTIME_CONSUMER(objects.StructType, pool.ExecutiveObject):
+    """A class for windows ETW GUID objects."""
+
+    def get_consumer_loggerid(self) -> int:
+        """Get LoggerId"""
+        return self.LoggerId
+    
+
+class WMI_LOGGER_CONTEXT(objects.StructType, pool.ExecutiveObject):
+    """A class for windows WMI_LOGGER_CONTEXT objects."""
+
+    def get_logger_name(self) -> str:
+        """Get LoggerName"""
+
+        try:
+            return self.LoggerName.get_string()
+        except:
+            return "no"
+
+    def get_log_filename(self) -> str:
+        """Get LogFileName"""
+
+        try:
+            return self.LogFileName.get_string()
+        except:
+            return "no"
+           
+    def get_logger_id(self) -> int:
+        """Get LoggerId"""
+        return self.LoggerId
+    
+    def get_buffer_size(self) -> int:
+        """Get BufferSize"""
+        return self.BufferSize
+
+    def get_maximum_event_size(self) -> int:
+        """Get MaximumEventSize"""
+        return self.MaximumEventSize
+
+    def get_logger_mode(self) -> str:
+        """Get LoggerMode"""
+        dictLoggerMode = {
+            0x00000001: "EVENT_TRACE_FILE_MODE_SEQUENTIAL",
+            0x00000002: "EVENT_TRACE_FILE_MODE_CIRCULAR",
+            0x00000003: "EVENT_TRACE_FILE_MODE_APPEND",
+            0x00000004: "EVENT_TRACE_FILE_MODE_APPEND",
+            0x00000008: "EVENT_TRACE_FILE_MODE_NEWFILE",
+            0x00000010: "EVENT_TRACE_USE_MS_FLUSH_TIMER",
+            0x00000020: "EVENT_TRACE_FILE_MODE_PREALLOCATE",
+            0x00000040: "EVENT_TRACE_NONSTOPPABLE_MODE",
+            0x00000080: "EVENT_TRACE_SECURE_MODE",
+            0x00000100: "EVENT_TRACE_REAL_TIME_MODE",
+            0x00000200: "EVENT_TRACE_DELAY_OPEN_FILE_MODE",
+            0x00000400: "EVENT_TRACE_BUFFERING_MODE",
+            0x00000800: "EVENT_TRACE_PRIVATE_LOGGER_MODE",
+            0x00001000: "EVENT_TRACE_ADD_HEADER_MODE",
+            0x00002000: "EVENT_TRACE_USE_KBYTES_FOR_SIZE",
+            0x00004000: "EVENT_TRACE_USE_GLOBAL_SEQUENCE",
+            0x00008000: "EVENT_TRACE_USE_LOCAL_SEQUENCE",
+            0x00010000: "EVENT_TRACE_RELOG_MODE",
+            0x00020000: "EVENT_TRACE_PRIVATE_IN_PROC",
+            0x00040000: "EVENT_TRACE_BUFFER_INTERFACE_MODE",
+            0x00080000: "EVENT_TRACE_KD_FILTER_MODE",
+            0x00100000: "EVENT_TRACE_REALTIME_RELOG_MODE",
+            0x00200000: "EVENT_TRACE_LOST_EVENTS_DEBUG_MODE",
+            0x00400000: "EVENT_TRACE_STOP_ON_HYBRID_SHUTDOWN",
+            0x00800000: "EVENT_TRACE_PERSIST_ON_HYBRID_SHUTDOWN",
+            0x01000000: "EVENT_TRACE_USE_PAGED_MEMORY",
+            0x02000000: "EVENT_TRACE_SYSTEM_LOGGER_MODE",
+            0x04000000: "EVENT_TRACE_COMPRESSED_MODE",
+            0x08000000: "EVENT_TRACE_INDEPENDENT_SESSION_MODE",
+            0x10000000: "EVENT_TRACE_NO_PER_PROCESSOR_BUFFERING",
+            0x20000000: "EVENT_TRACE_BLOCKING_MODE",
+            0x80000000: "EVENT_TRACE_ADDTO_TRIAGE_DUMP"}
+
+        return dictLoggerMode.get(self.LoggerMode)
+    
+    def get_start_time(self) -> str:
+        """Get StartTime"""
+        return conversion.wintime_to_datetime(self.StartTime.QuadPart)
+
+    def get_minimum_buffers(self) -> int:
+        """Get MinimumBuffers"""
+        return self.MinimumBuffers
+    
+    def get_maximum_buffers(self) -> int:
+        """Get MaximumBuffers"""
+        return self.MaximumBuffers
+    
+    def get_guid(self) -> str:
+        """Get InstanceGuid"""
+        data1 = getattr(self.InstanceGuid, "Data1")
+        data2 = getattr(self.InstanceGuid, "Data2")
+        data3 = getattr(self.InstanceGuid, "Data3")
+        data4 = getattr(self.InstanceGuid, "Data4")
+        return "{0:08x}-{1:04x}-{2:04x}-{3:s}-{4:s}".format(
+            data1,
+            data2,
+            data3,
+            ''.join(["%02x" % d for d in data4[:2]]),
+            ''.join(["%02x" % d for d in data4[2:]]),
+        )
+    
+    def get_flush_time(self) -> str:
+        """Get FlushTime"""
+        return conversion.wintime_to_datetime(self.FlushTime.QuadPart)
+    
+    def get_flush_interval(self) -> int:
+        """Get FlushInterval"""
+        return self.FlushInterval
+    
+    def get_flush_threshold(self) -> int:
+        """Get FlushThreshold"""
+        return self.FlushThreshold
+    
+    def get_buffer_pool_size(self) -> int:
+        """Get BufferPoolSize"""
+        return self.BufferPoolSize
+    
+    def get_buffer_pool_free(self) -> int:
+        """Get BufferPoolFree"""
+        return self.BufferPoolFree
+    
+    def get_events_lost(self) -> int:
+        """Get EventsLost"""
+        return self.EventsLost
+    
+    def get_buffers_written(self) -> int:
+        """Get BuffersWritten"""
+        return self.BuffersWritten
+
+    def get_number_of_buffers(self) -> int:
+        """Get NumberOfBuffers"""
+        return self.NumberOfBuffers
+
+    def isenable_compression(self) -> bool:
+        """Get CompressionOn"""
+        if getattr(self, "CompressionOn"):
+            return True
+        else:
+            return False
+        
+    def get_compression_mode(self) -> str:
+        """Get CompressionResumptionMode"""
+        dictCompressionResumptionMode = {
+            0: "EtwCompressionModeRestart",
+            1: "EtwCompressionModeNoDisable",
+            2: "EtwCompressionModeNoRestart",
+        }
+        return dictCompressionResumptionMode.get(self.CompressionResumptionMode)
+
+class WMI_BUFFER_HEADER(objects.StructType, pool.ExecutiveObject):
+    """A class for windows WMI_BUFFER_HEADER objects."""
+
+    def get_timestamp(self) -> str:
+        """Get TimeStamp"""
+        return conversion.wintime_to_datetime(self.TimeStamp.QuadPart)
+
+    def get_status(self) -> str:
+        """Get buffer status"""
+        dictStatus = {
+            0: "WMI_BUFFER_STATE_UNUSED",
+            1: "WMI_BUFFER_STATE_DIRTY",
+            2: "WMI_BUFFER_STATE_FLUSH",
+            3: "WMI_BUFFER_STATE_INUSE",
+            4: "WMI_BUFFER_STATE_COMMITTED",
+            5: "WMI_BUFFER_STATE_LOST",
+        }
+        return dictStatus.get(self.State)

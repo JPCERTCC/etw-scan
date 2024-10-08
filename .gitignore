@@ -1,0 +1,12 @@
+*.pyc
+*~
+*.bak
+*.etl
+*.mem
+*.csv
+*.txt
+*.dmp
+*.exe
+*.evtx
+*.xml
+!LICENSE.txt

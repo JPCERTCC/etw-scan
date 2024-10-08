@@ -1,0 +1,42 @@
+name: test plugin
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11']
+
+    steps:
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Clone Volatility3 and install
+      run: |
+        cd ..
+        git clone https://github.com/volatilityfoundation/volatility3.git
+        cd volatility3
+        pip install -r requirements.txt
+
+    - name: patch Volatility3
+      run: |
+        cd ..
+        cat etw-scan/patch/windows_init.patch >> volatility3/volatility3/framework/symbols/windows/__init__.py
+        cat etw-scan/patch/extensions_init.patch >> volatility3/volatility3/framework/symbols/windows/extensions/__init__.py
+
+    - name: test
+      run: |
+        cd ../volatility3
+        python3 vol.py -p ../etw-scan/plugins/ -h
+        python3 vol.py -p ../etw-scan/plugins/ etwscan.etwConsumer -h
+        python3 vol.py -p ../etw-scan/plugins/ etwscan.etwProvider -h
