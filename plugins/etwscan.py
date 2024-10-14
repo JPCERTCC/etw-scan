@@ -1,4 +1,4 @@
-# ETWScan: Scanning for ETW processes in memory
+# ETW Scanner: Volatility3 Plugin to detect ETW Providers and Consumers in Windows memory
 #
 # LICENSE
 # Please refer to the LICENSE.txt in the https://github.com/JPCERTCC/etw-scan/
@@ -49,6 +49,12 @@ class etwProvider(interfaces.plugins.PluginInterface):
                                          description='Filter on specific process IDs',
                                          element_type=int,
                                          optional=True),
+            requirements.BooleanRequirement(
+                name="all",
+                description="List all ETW Providers (with Disable providers)",
+                default=False,
+                optional=True,
+            ),
         ]
 
     @staticmethod
@@ -117,8 +123,7 @@ class etwProvider(interfaces.plugins.PluginInterface):
 
         md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_64)
 
-        for address, size, mnemonic, op_str in md.disasm_lite(data, kvo + func_addr):
-            # print("{} {} {} {}".format(address, size, mnemonic, op_str))
+        for _, _, mnemonic, op_str in md.disasm_lite(data, kvo + func_addr):
 
             if mnemonic.startswith("sar"):
                 # if we don't want to parse op strings, we can disasm the
@@ -170,7 +175,6 @@ class etwProvider(interfaces.plugins.PluginInterface):
 
                 offset = handle_table_entry.InfoTable & ~7
 
-            # print("LowValue: {0:#x} Magic: {1:#x} Offset: {2:#x}".format(handle_table_entry.InfoTable, magic, offset))
             object_header = context.object(
                 symbol_table_name + constants.BANG + "_OBJECT_HEADER",
                 virtual,
@@ -238,7 +242,7 @@ class etwProvider(interfaces.plugins.PluginInterface):
                 except exceptions.InvalidAddressException:
                     continue
 
-    def handles(self, handle_table, context, layer_name, symbol_table_name):
+    def _handles(self, handle_table, context, layer_name, symbol_table_name):
         level_mask = 7
         try:
             TableCode = handle_table.TableCode & ~level_mask
@@ -268,12 +272,19 @@ class etwProvider(interfaces.plugins.PluginInterface):
             symbol_table = self.config['nt_symbols']
 
             # Get the object type map and cookie for handle resolution
-            type_map = handles.Handles.get_type_map(context=self.context,
-                                                    layer_name=layer_name,
-                                                    symbol_table=symbol_table)
-            cookie = handles.Handles.find_cookie(context=self.context,
-                                                 layer_name=layer_name,
-                                                 symbol_table=symbol_table)
+            try:
+                type_map = handles.Handles.get_type_map(context=self.context,
+                                                        layer_name=layer_name,
+                                                        symbol_table=symbol_table)
+                cookie = handles.Handles.find_cookie(context=self.context,
+                                                     layer_name=layer_name,
+                                                     symbol_table=symbol_table)
+            except:
+                vollog.log(
+                    constants.LOGLEVEL_VVV,
+                    "Cannot get type map or cookie",
+                )
+                continue
 
             try:
                 object_table = task.ObjectTable
@@ -285,7 +296,7 @@ class etwProvider(interfaces.plugins.PluginInterface):
                 continue
 
             # Iterate through each handle in the object table
-            for entry in self.handles(object_table, self.context, layer_name, symbol_table):
+            for entry in self._handles(object_table, self.context, layer_name, symbol_table):
                 try:
                     obj_type = entry.get_object_type(type_map, cookie)
                     if obj_type is None:
@@ -295,12 +306,13 @@ class etwProvider(interfaces.plugins.PluginInterface):
                     if obj_type == "EtwRegistration":
                         item = entry.Body.cast("_ETW_REG_ENTRY")
 
+                        enable_mask = item.get_provider_enablemask()
+                        provider_guid = item.get_guid()
+                        logger_id = item.get_provider_loggerid()
+                        logger_level = item.get_provider_level() or "No"
+
                         # Check if the provider is enabled
                         if item.isenable_provider():
-                            enable_mask = item.get_provider_enablemask()
-                            provider_guid = item.get_guid()
-                            logger_id = item.get_provider_loggerid()
-                            logger_level = item.get_provider_level() or "No"
 
                             # Yield information about the ETW registration
                             yield (0,
@@ -310,11 +322,16 @@ class etwProvider(interfaces.plugins.PluginInterface):
                                                             errors='replace'), obj_type,
                                     format_hints.Hex(entry.Body.vol.offset), provider_guid,
                                     logger_id, logger_level, enable_mask))
-                    else:
-                        try:
-                            obj_name = entry.NameInfo.Name.String
-                        except (ValueError, exceptions.InvalidAddressException):
-                            obj_name = ""
+                        elif self.config["all"]:
+
+                            # Yield information about the ETW registration
+                            yield (0,
+                                   (task.UniqueProcessId,
+                                    task.ImageFileName.cast("string",
+                                                            max_length=task.ImageFileName.vol.count,
+                                                            errors='replace'), obj_type,
+                                    format_hints.Hex(entry.Body.vol.offset), provider_guid,
+                                    logger_id, logger_level, enable_mask))
 
                 except exceptions.InvalidAddressException:
                     vollog.log(
@@ -490,8 +507,7 @@ class etwConsumer(interfaces.plugins.PluginInterface):
 
         md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_64)
 
-        for address, size, mnemonic, op_str in md.disasm_lite(data, kvo + func_addr):
-            # print("{} {} {} {}".format(address, size, mnemonic, op_str))
+        for _, _, mnemonic, op_str in md.disasm_lite(data, kvo + func_addr):
 
             if mnemonic.startswith("sar"):
                 # if we don't want to parse op strings, we can disasm the
@@ -520,7 +536,14 @@ class etwConsumer(interfaces.plugins.PluginInterface):
             is_64bit = symbols.symbol_table_is_64bit(context, symbol_table_name)
 
             if is_64bit:
-                if handle_table_entry.LowValue == 0:
+                try:
+                    if handle_table_entry.LowValue == 0:
+                        return None
+                except:
+                    vollog.log(
+                        constants.LOGLEVEL_VVV,
+                        "Can't get _HANDLE_TABLE_ENTRY LowValue",
+                    )
                     return None
 
                 magic = self._find_sar_value(context, layer_name, symbol_table_name)
@@ -543,7 +566,6 @@ class etwConsumer(interfaces.plugins.PluginInterface):
 
                 offset = handle_table_entry.InfoTable & ~7
 
-            # print("LowValue: {0:#x} Magic: {1:#x} Offset: {2:#x}".format(handle_table_entry.InfoTable, magic, offset))
             object_header = context.object(
                 symbol_table_name + constants.BANG + "_OBJECT_HEADER",
                 virtual,
@@ -611,7 +633,7 @@ class etwConsumer(interfaces.plugins.PluginInterface):
                 except exceptions.InvalidAddressException:
                     continue
 
-    def handles(self, handle_table, context, layer_name, symbol_table_name):
+    def _handles(self, handle_table, context, layer_name, symbol_table_name):
         level_mask = 7
         try:
             TableCode = handle_table.TableCode & ~level_mask
@@ -904,11 +926,12 @@ class etwConsumer(interfaces.plugins.PluginInterface):
             Tuple containing information about each ETW consumer.
         """
         logger_ids = []
-        for task in tasks:
+        for i, task in enumerate(tasks):
             layer_name = task.add_process_layer()
             layer = self.context.layers[layer_name]
             symbol_table = self.config['nt_symbols']
-            vers = self.get_version_structure(self.context, layer_name, symbol_table)
+            if i == 0:
+                vers = self.get_version_structure(self.context, layer_name, symbol_table)
 
             kvo = layer.config["kernel_virtual_offset"]
             ntkrnlmp = self.context.module(symbol_table, layer_name=layer_name, offset=kvo)
@@ -917,16 +940,28 @@ class etwConsumer(interfaces.plugins.PluginInterface):
                                                        offset=hostsiloglobals_offset)
 
             # Generate ETW logger context list
-            etw_logger_context = self._generate_etw_logger_context(vers, serversilo_globals_entry,
-                                                                   ntkrnlmp)
+            try:
+                etw_logger_context = self._generate_etw_logger_context(
+                    vers, serversilo_globals_entry, ntkrnlmp)
+            except:
+                vollog.log(constants.LOGLEVEL_VVV,
+                           f"Cannot load ETW stracture at {task.vol.offset:#x}")
+                continue
 
             # Get the object type map and cookie
-            type_map = handles.Handles.get_type_map(context=self.context,
-                                                    layer_name=layer_name,
-                                                    symbol_table=symbol_table)
-            cookie = handles.Handles.find_cookie(context=self.context,
-                                                 layer_name=layer_name,
-                                                 symbol_table=symbol_table)
+            try:
+                type_map = handles.Handles.get_type_map(context=self.context,
+                                                        layer_name=layer_name,
+                                                        symbol_table=symbol_table)
+                cookie = handles.Handles.find_cookie(context=self.context,
+                                                     layer_name=layer_name,
+                                                     symbol_table=symbol_table)
+            except:
+                vollog.log(
+                    constants.LOGLEVEL_VVV,
+                    "Cannot get type map or cookie",
+                )
+                continue
 
             try:
                 object_table = task.ObjectTable
@@ -935,7 +970,7 @@ class etwConsumer(interfaces.plugins.PluginInterface):
                            f"Cannot access _EPROCESS.ObjectType at {task.vol.offset:#x}")
                 continue
 
-            for entry in self.handles(object_table, self.context, layer_name, symbol_table):
+            for entry in self._handles(object_table, self.context, layer_name, symbol_table):
                 try:
                     obj_type = entry.get_object_type(type_map, cookie)
                     if obj_type is None or obj_type != "EtwConsumer":

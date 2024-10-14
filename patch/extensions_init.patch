@@ -1,3 +1,4 @@
+
 # Added ETW sturacture class
 class ETW_REG_ENTRY(objects.StructType, pool.ExecutiveObject):
     """A class for windows ETW registry objects."""
