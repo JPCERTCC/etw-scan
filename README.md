@@ -23,7 +23,7 @@ This tool is a Volatility3 plugin that scans memory dumps for Event Tracing for 
     pip install -r requirements.txt
     ```
 
-3. Clone the ETW Scan of Volatility plugin from GitHub:
+3. Clone the ETW Scanner of Volatility plugin from GitHub:
 
     ```shell
     git clone https://github.com/JPCERTCC/etw-scan.git
@@ -67,12 +67,13 @@ TBA
 
 #### English
 
-TBA
+* [https://blogs.jpcert.or.jp/en/2024/11/etw_forensics.html](https://blogs.jpcert.or.jp/en/2024/11/etw_forensics.html)
 
 #### Japanese
 
-TBA
+* [https://blogs.jpcert.or.jp/ja/2024/11/etw_forensics.html](https://blogs.jpcert.or.jp/ja/2024/11/etw_forensics.html)
 
 ### Slides
 
-TBA
+* CODE BLUE 2024
+  - [Slides](docs/Event_Tracing_for_Windows_Internals.pdf)
